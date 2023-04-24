@@ -49,8 +49,7 @@ jobs:
       
     # Slack message of Unit tests fail  
     - name: Slack Notification for Unit tests
-      # if: ${{ steps.unitTests.outcome == 'failure' && failure() }} 
-      if: always()
+      if: ${{ steps.unitTests.outcome == 'failure' && failure() }} 
       uses: rtCamp/action-slack-notify@v2.2.0
       env:
         SLACK_USERNAME: Tests execution report
@@ -63,50 +62,16 @@ jobs:
         SLACK_FOOTER: boilerplate
         
     - name: Run Playwright installation
+      if: ${{ steps.unitTests.outcome == 'success' }} 
       shell: pwsh
       run: pwsh -Command "./PlaywrightAutomation/bin/Debug/net6.0/playwright.ps1 install"
-      
-    - name: UI tests
-      if: github.event_name == 'pull_request'
-      run: dotnet test ./PlaywrightAutomation.sln --filter "TestCategory=Smoke&TestCategory!=NotRun"
     
-    - name: UI tests on Schedule or Manual  run
+    - name: UI tests
+      if: ${{ steps.unitTests.outcome == 'success' }} 
       run: dotnet test ./PlaywrightAutomation.sln --filter "TestCategory!=OnBuild&TestCategory!=NotRun"
       
-    # Steps to report UI tests execution status
-    # Prepare Allure history and publish to GitHub pages
-    - name: Get Allure history
-      uses: actions/checkout@v3
-      if: always() 
-      continue-on-error: true
-      with:
-        ref: gh-pages
-        path: gh-pages
-        
-    - name: Compile Allure report
-      uses: simple-elf/allure-report-action@master
-      if: always() 
-      with:
-        allure_results: PlaywrightAutomation/bin/Debug/net6.0/allure-results
-        allure_history: PlaywrightAutomation/bin/Debug/net6.0/allure-history
-        keep_reports: 30
-          
-    - name: Deploy Allure Report to GitHub Pages
-      uses: JamesIves/github-pages-deploy-action@v4.4.1
-      if: always() 
-      with:
-        token: ${{ secrets.ACCESS_TOKEN }}
-        branch: gh-pages
-        folder: ui_tests/PlaywrightAutomation/bin/Debug/net6.0/allure-history
-        
-    - name: Add Allure report link to Annotations section
-      if: always() 
-      run: |
-        text="https://tech-stack-dev.github.io/automation-playwright-dotnet/${{ github.run_number }}"
-        echo "::warning ::$text"
-          
     - name: Slack Notification
-      if: always()
+      if: ${{ steps.unitTests.outcome == 'success' }} 
       uses: rtCamp/action-slack-notify@v2.2.0
       env:
         SLACK_USERNAME: Tests execution report
