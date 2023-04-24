@@ -71,14 +71,14 @@ jobs:
       run: dotnet test ./PlaywrightAutomation.sln --filter "TestCategory!=OnBuild&TestCategory!=NotRun"
       
     - name: Slack Notification
-      if: ${{ steps.unitTests.outcome == 'success' }} 
+      if: ${{ steps.unitTests.outcome == 'success' && failure() }} 
       uses: rtCamp/action-slack-notify@v2.2.0
       env:
         SLACK_USERNAME: Tests execution report
         SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
         SLACK_CHANNEL: autotest_boilerplates
         SLACK_COLOR: ${{ job.status }}
-        SLACK_MESSAGE: https://tech-stack-dev.github.io/automation-playwright-dotnet/${{ github.run_number }}
+        SLACK_MESSAGE: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         SLACK_TITLE: .Net UI tests
         MSG_MINIMAL: true
         SLACK_FOOTER: boilerplate
