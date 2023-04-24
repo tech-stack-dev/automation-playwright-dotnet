@@ -11,6 +11,6 @@ Scenario: CheckErrorMessagesForRequiredFieldsWithSpacesOnContactForm
 	When User clicks 'Submit' button on 'ContactUsPage' container
 	Then Error messages are displayed under fields
 		| Input     | ErrorMessage                      |
-		| Full name | Please enter your name            |
+		| Full name | Please enter your name1            |
 		| Email     | Please enter a valid email        |
 		| Tel       | Please enter a valid phone number |
