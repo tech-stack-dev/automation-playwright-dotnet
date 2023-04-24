@@ -1,0 +1,118 @@
+name: .NET
+
+on:
+  workflow_dispatch:
+  schedule:
+  #Run each day at 23:15
+    - cron: '15 23 * * *'
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  tests_unitAndUi:
+    name: Unit and UI tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 6.0.x
+        
+    - name: Restore dependencies
+      run: dotnet restore ./PlaywrightAutomation.sln
+
+    - name: Override config parameters
+      shell: pwsh
+      run: |
+        Try
+          {
+            $configPath = './PlaywrightAutomation/appsettings.json'
+            $jsonConfig = Get-Content $configPath | Out-String | ConvertFrom-Json
+            $jsonConfig.Browser_Headless = 'true'
+            $jsonConfig | ConvertTo-Json -depth 100 | Out-File $configPath
+          }
+          Catch
+          {
+            throw "$_.Exception.ToString()"
+          }
+
+    - name: Build
+      run: dotnet build ./PlaywrightAutomation.sln --no-restore
+      
+
+    - name: Unit tests
+      id: unitTests
+      run: dotnet test ./PlaywrightAutomation.sln --filter "TestCategory=OnBuild" --no-build --verbosity normal
+      
+    # Slack message of Unit tests fail  
+    - name: Slack Notification for Unit tests
+      if: ${{ steps.unitTests.outcome == 'failure' && failure() }} 
+      uses: rtCamp/action-slack-notify@v2.2.0
+      env:
+        SLACK_USERNAME: Tests execution report
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        SLACK_CHANNEL: autotest_boilerplates
+        SLACK_COLOR: ${{ job.status }}
+        SLACK_MESSAGE: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        SLACK_TITLE: .Net Unit tests (PW + .Net)
+        MSG_MINIMAL: true
+        SLACK_FOOTER: boilerplate
+        
+    - name: Run Playwright installation
+      shell: pwsh
+      run: pwsh -Command "./PlaywrightAutomation/bin/Debug/net6.0/playwright.ps1 install"
+      
+    - name: UI tests
+      if: github.event_name == 'pull_request'
+      run: dotnet test ./PlaywrightAutomation.sln --filter "TestCategory=Smoke&TestCategory!=NotRun"
+    
+    - name: UI tests on Schedule or Manual  run
+      run: dotnet test ./PlaywrightAutomation.sln --filter "TestCategory!=OnBuild&TestCategory!=NotRun"
+      
+    # Steps to report UI tests execution status
+    # Prepare Allure history and publish to GitHub pages
+    - name: Get Allure history
+      uses: actions/checkout@v3
+      if: always() 
+      continue-on-error: true
+      with:
+        ref: gh-pages
+        path: gh-pages
+        
+    - name: Compile Allure report
+      uses: simple-elf/allure-report-action@master
+      if: always() 
+      with:
+        allure_results: PlaywrightAutomation/bin/Debug/net6.0/allure-results
+        allure_history: PlaywrightAutomation/bin/Debug/net6.0/allure-history
+        keep_reports: 30
+          
+    - name: Deploy Allure Report to GitHub Pages
+      uses: JamesIves/github-pages-deploy-action@v4.4.1
+      if: always() 
+      with:
+        token: ${{ secrets.ACCESS_TOKEN }}
+        branch: gh-pages
+        folder: ui_tests/PlaywrightAutomation/bin/Debug/net6.0/allure-history
+        
+    - name: Add Allure report link to Annotations section
+      if: always() 
+      run: |
+        text="https://tech-stack-dev.github.io/automation-playwright-dotnet/${{ github.run_number }}"
+        echo "::warning ::$text"
+          
+    - name: Slack Notification
+      if: always()
+      env:
+        SLACK_USERNAME: Tests execution report
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        SLACK_CHANNEL: autotest_boilerplates
+        SLACK_COLOR: ${{ job.status }}
+        SLACK_MESSAGE: https://tech-stack-dev.github.io/automation-playwright-dotnet/${{ github.run_number }}
+        SLACK_TITLE: .Net UI tests
+        MSG_MINIMAL: true
+        SLACK_FOOTER: boilerplate
+        
